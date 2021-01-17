@@ -1,0 +1,31 @@
+name: Build All
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+    - 'src/**'
+    - '.github/workflows/ci_build-and-test-all.yml'
+  pull_request:
+    branches: [ master ]
+    paths:
+    - 'src/**'
+    - '.github/workflows/ci_build-and-test-all.yml'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 5.0.100
+    - name: Install dependencies
+      run: dotnet restore src/TweetVisualiser.sln
+    - name: Build
+      run: dotnet build src/TweetVisualiser.sln --configuration Release --no-restore
+    - name: Test
+      run: dotnet test src/TweetVisualiser.sln --no-restore --verbosity normal
