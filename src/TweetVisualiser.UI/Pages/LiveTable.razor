@@ -1,0 +1,49 @@
+@page "/livetable"
+
+@implements IDisposable
+
+@inject ITweetRepository TweetRepository
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Streamed Time UTC</th>
+            <th>Tag</th>
+            <th>Content</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var tweet in _tweets.OrderByDescending(tweet => tweet.StreamedTimeUtc))
+        {
+            <tr>
+                <td>@tweet.Id</td>
+                <td>@tweet.StreamedTimeUtc</td>
+                <td>@tweet.Tag</td>
+                <td>@tweet.Content</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code
+{
+    private readonly List<Tweet> _tweets = new List<Tweet>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await TweetRepository.SubscribeToChanges(Guid.NewGuid().ToString(), HandleChangesAsync);
+        await base.OnInitializedAsync();
+    }
+
+    public void Dispose()
+    {
+        TweetRepository.UnsubscribeFromChanges();
+    }
+
+    private async Task HandleChangesAsync(IReadOnlyCollection<Tweet> changes, CancellationToken cancellationToken)
+    {
+        _tweets.AddRange(changes);
+        await InvokeAsync(() => StateHasChanged());
+    }
+}

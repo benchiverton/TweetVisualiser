@@ -22,8 +22,23 @@ namespace TweetVisualiser.Listener.Twitter
         {
             new StreamingRule
             {
-                Tag = "related to psychology",
-                Value = "psychology"
+                Tag = "related to Trump",
+                Value = "trump"
+            },
+            new StreamingRule
+            {
+                Tag = "related to Biden",
+                Value = "biden"
+            },
+            new StreamingRule
+            {
+                Tag = "related to Boris Johnson",
+                Value = "boris johnson"
+            },
+            new StreamingRule
+            {
+                Tag = "related to Cats",
+                Value = "cat"
             },
         };
 

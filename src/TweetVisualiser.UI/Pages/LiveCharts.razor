@@ -1,0 +1,149 @@
+@page "/livecharts"
+
+@implements IDisposable
+
+@inject ITweetRepository TweetRepository
+
+<Row>
+    <Column ColumnSize="ColumnSize.IsHalf.OnWidescreen">
+        <Card Margin="Margin.Is4.OnY">
+            <CardHeader>
+                <CardTitle>Tweet Volume</CardTitle>
+            </CardHeader>
+            <CardBody>
+                <LineChart @ref="tweetVolumeChart" TItem="LiveDataPoint" OptionsObject="@tweetVolumeChartOptions">
+                    <ChartStreaming TItem="LiveDataPoint"
+                                    Options="new ChartStreamingOptions { Refresh = _refreshRateInSeconds * 1000, Duration = _durationInSeconds * 1000 }"
+                                    Refreshed="@OnTweetVolumeRefreshed" />
+                </LineChart>
+            </CardBody>
+        </Card>
+    </Column>
+    <Column ColumnSize="ColumnSize.IsHalf.OnWidescreen">
+        <Card Margin="Margin.Is4.OnY">
+            <CardHeader>
+                <CardTitle>Tweet Length</CardTitle>
+            </CardHeader>
+            <CardBody>
+                <LineChart @ref="tweetLengthChart" TItem="LiveDataPoint" OptionsObject="@tweetLengthChartOptions">
+                    <ChartStreaming TItem="LiveDataPoint"
+                                    Options="new ChartStreamingOptions { Refresh = _refreshRateInSeconds * 1000, Duration = _durationInSeconds * 1000 }"
+                                    Refreshed="@OnTweetLengthRefreshed" />
+                </LineChart>
+            </CardBody>
+        </Card>
+    </Column>
+</Row>
+
+@code
+{
+    LineChart<LiveDataPoint> tweetVolumeChart;
+    LineChart<LiveDataPoint> tweetLengthChart;
+    object tweetVolumeChartOptions = new HorizontalLineChartOptions("Volume of Tweets (by Tag)", "Tweets/s");
+    object tweetLengthChartOptions = new HorizontalLineChartOptions("Average Length of Tweets (by Tag)", "Characters");
+
+    private readonly int _refreshRateInSeconds = 5;
+    private readonly int _durationInSeconds = 15;
+    private readonly List<Tweet> _latestTweetsForVolume = new List<Tweet>();
+    private readonly List<Tweet> _latestTweetsForLength = new List<Tweet>();
+    private readonly List<string> _trackedTags = new List<string>();
+    private readonly object _latestTweetLock = new object();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await TweetRepository.SubscribeToChanges(Guid.NewGuid().ToString(), HandleChangesAsync);
+        await base.OnInitializedAsync();
+    }
+
+    public void Dispose()
+    {
+        TweetRepository.UnsubscribeFromChanges();
+    }
+
+    private async Task HandleRedraw<TDataSet, TItem, TOptions, TModel>(BaseChart<TDataSet, TItem, TOptions, TModel> chart, params Func<TDataSet>[] getDataSets)
+        where TDataSet : ChartDataset<TItem>
+        where TOptions : ChartOptions
+        where TModel : ChartModel
+    {
+        await chart.Clear();
+
+        await chart.AddLabelsDatasetsAndUpdate(ComponentColours.Labels, getDataSets.Select(x => x.Invoke()).ToArray());
+    }
+
+    private Task OnTweetVolumeRefreshed(ChartStreamingData<LiveDataPoint> data)
+    {
+        lock (_latestTweetLock)
+        {
+            data.Value = new LiveDataPoint
+            {
+                X = DateTime.Now,
+                Y = (double) _latestTweetsForVolume.Where(t => t.Tag == data.DatasetLabel).Count() / _refreshRateInSeconds
+            };
+            _latestTweetsForVolume.RemoveAll(t => t.Tag == data.DatasetLabel);
+        }
+
+        return Task.CompletedTask;
+    }
+
+
+    private Task OnTweetLengthRefreshed(ChartStreamingData<LiveDataPoint> data)
+    {
+        lock (_latestTweetLock)
+        {
+            var relatedTweets = _latestTweetsForLength.Where(t => t.Tag == data.DatasetLabel);
+            if (relatedTweets.Any())
+            {
+                data.Value = new LiveDataPoint
+                {
+                    X = DateTime.Now,
+                    Y = relatedTweets.Average(t => t.Content.Length)
+                };
+            }
+            else
+            {
+                data.Value = new LiveDataPoint
+                {
+                    X = DateTime.Now,
+                    Y = 0
+                };
+            }
+            _latestTweetsForLength.RemoveAll(t => t.Tag == data.DatasetLabel);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task HandleChangesAsync(IReadOnlyCollection<Tweet> changes, CancellationToken cancellationToken)
+    {
+        lock (_latestTweetLock)
+        {
+            var untrackedTags = changes.Select(t => t.Tag).Distinct().Where(t => !_trackedTags.Contains(t));
+            foreach (var untrackedTag in untrackedTags)
+            {
+                tweetVolumeChart.AddDatasetsAndUpdate(new LineChartDataset<LiveDataPoint>
+                {
+                    Data = new List<LiveDataPoint>(),
+                    Label = untrackedTag,
+                    BorderColor = ComponentColours.BorderColours[_trackedTags.Count % 6],
+                    BackgroundColor = ComponentColours.BackgroundColours[_trackedTags.Count % 6],
+                    Fill = false,
+                    CubicInterpolationMode = "monotone",
+                });
+                tweetLengthChart.AddDatasetsAndUpdate(new LineChartDataset<LiveDataPoint>
+                {
+                    Data = new List<LiveDataPoint>(),
+                    Label = untrackedTag,
+                    BorderColor = ComponentColours.BorderColours[_trackedTags.Count % 6],
+                    BackgroundColor = ComponentColours.BackgroundColours[_trackedTags.Count % 6],
+                    Fill = false,
+                    CubicInterpolationMode = "monotone",
+                });
+                _trackedTags.Add(untrackedTag);
+            }
+
+            _latestTweetsForVolume.AddRange(changes);
+            _latestTweetsForLength.AddRange(changes);
+        }
+        return Task.CompletedTask;
+    }
+}
