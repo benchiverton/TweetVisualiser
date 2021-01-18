@@ -1,4 +1,5 @@
-﻿@using System.Net.Http
+@using System.Net.Http
+@using System.Threading
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Forms
@@ -8,3 +9,13 @@
 @using Microsoft.JSInterop
 @using TweetVisualiser.UI
 @using TweetVisualiser.UI.Shared
+
+@* Application libraries *@
+@using TweetVisualiser.Shared.Contracts
+@using TweetVisualiser.Shared.Data
+@using TweetVisualiser.UI.BlazoriseHelpers 
+
+@* Blazorise *@
+@using Blazorise
+@using Blazorise.Charts
+@using Blazorise.Charts.Streaming

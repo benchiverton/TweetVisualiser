@@ -40,13 +40,23 @@ namespace TweetVisualiser.Listener.Twitter
                     _streaming = true;
                     await _twitterContext.Streaming.WithCancellation(_cancellationTokenSource.Token)
                        .Where(s => s.Type == StreamingType.Filter)
-                       .StartAsync(streamContent =>
+                       .StartAsync(async streamContent =>
                        {
-                           if (!string.IsNullOrEmpty(streamContent.Content))
+                           // sometimes we get empty tweets...
+                           if (string.IsNullOrEmpty(streamContent.Content))
                            {
-                               return onTweetReceived(JsonSerializer.Deserialize<FilteredTweetResponse>(streamContent.Content));
+                               return;
                            }
-                           return Task.CompletedTask;
+
+                           try
+                           {
+                               await onTweetReceived(JsonSerializer.Deserialize<FilteredTweetResponse>(streamContent.Content));
+                           }
+                           catch (Exception ex)
+                           {
+                               // if we don't handle exceptions receiving the tweet, we quickly hit our rate limit when recovering
+                               _logger.LogError(ex, "An exception was thrown when receiving a tweet. It will not be retried.");
+                           }
                        });
                 }
                 catch (TaskCanceledException _)
