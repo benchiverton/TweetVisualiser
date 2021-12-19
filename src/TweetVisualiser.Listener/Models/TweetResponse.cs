@@ -1,8 +1,7 @@
-namespace TweetVisualiser.Listener.Models
+namespace TweetVisualiser.Listener.Models;
+
+public class TweetResponse
 {
-    public class TweetResponse
-    {
-        public string id { get; set; }
-        public string text { get; set; }
-    }
+    public string id { get; set; }
+    public string text { get; set; }
 }

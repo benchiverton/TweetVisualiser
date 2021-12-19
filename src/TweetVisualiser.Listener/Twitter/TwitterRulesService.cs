@@ -5,20 +5,20 @@ using System.Threading.Tasks;
 using LinqToTwitter;
 using Microsoft.Extensions.Logging;
 
-namespace TweetVisualiser.Listener.Twitter
+namespace TweetVisualiser.Listener.Twitter;
+
+public interface ITwitterRulesService
 {
-    public interface ITwitterRulesService
-    {
-        Task AddRules(CancellationToken cancellationToken);
-        Task DeleteRules(CancellationToken cancellationToken);
-    }
+    Task AddRules(CancellationToken cancellationToken);
+    Task DeleteRules(CancellationToken cancellationToken);
+}
 
-    public class TwitterRulesService : ITwitterRulesService
-    {
-        private readonly ILogger<TwitterRulesService> _logger;
-        private readonly TwitterContext _twitterContext;
+public class TwitterRulesService : ITwitterRulesService
+{
+    private readonly ILogger<TwitterRulesService> _logger;
+    private readonly TwitterContext _twitterContext;
 
-        private readonly List<StreamingRule> _rules = new List<StreamingRule>
+    private readonly List<StreamingRule> _rules = new List<StreamingRule>
         {
             new StreamingRule
             {
@@ -42,84 +42,83 @@ namespace TweetVisualiser.Listener.Twitter
             },
         };
 
-        public TwitterRulesService(ILogger<TwitterRulesService> logger, TwitterContext twitterContext)
+    public TwitterRulesService(ILogger<TwitterRulesService> logger, TwitterContext twitterContext)
+    {
+        _logger = logger;
+        _twitterContext = twitterContext;
+    }
+
+    public async Task AddRules(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Creating rules...");
+        var result = await _twitterContext.AddStreamingFilterRulesAsync(_rules.Select(r => new StreamingAddRule
         {
-            _logger = logger;
-            _twitterContext = twitterContext;
+            Tag = r.Tag,
+            Value = r.Value
+        }).ToList(), false, cancellationToken);
+
+        if (!result.HasErrors)
+        {
+            _logger.LogInformation("Rules successfully created.");
         }
-
-        public async Task AddRules(CancellationToken cancellationToken)
+        else
         {
-            _logger.LogInformation("Creating rules...");
-            var result = await _twitterContext.AddStreamingFilterRulesAsync(_rules.Select(r => new StreamingAddRule
+            _logger.LogError("Rules were not successfully created.");
+            foreach (var error in result.Errors)
             {
-                Tag = r.Tag,
-                Value = r.Value
-            }).ToList(), false, cancellationToken);
-
-            if (!result.HasErrors)
-            {
-                _logger.LogInformation("Rules successfully created.");
-            }
-            else
-            {
-                _logger.LogError("Rules were not successfully created.");
-                foreach (var error in result.Errors)
+                _logger.LogError(
+                        $"\nTitle: {error.Title}" +
+                        $"\nValue: {error.Value}" +
+                        $"\nID:    {error.ID}" +
+                        $"\nType:  {error.Type}");
+                if (error.Title == "DuplicateRule")
                 {
-                    _logger.LogError(
-                            $"\nTitle: {error.Title}" +
-                            $"\nValue: {error.Value}" +
-                            $"\nID:    {error.ID}" +
-                            $"\nType:  {error.Type}");
-                    if (error.Title == "DuplicateRule")
-                    {
-                        UpdateRuleWithId(error.Value, error.ID);
-                    }
-                }
-            }
-
-            if (result.Rules != null)
-            {
-                foreach(var rule in result.Rules)
-                {
-                    UpdateRuleWithId(rule.Value, rule.ID);
+                    UpdateRuleWithId(error.Value, error.ID);
                 }
             }
         }
 
-        public async Task DeleteRules(CancellationToken cancellationToken)
+        if (result.Rules != null)
         {
-            _logger.LogInformation("Deleting rules...");
-            var result = await _twitterContext.DeleteStreamingFilterRulesAsync(_rules.Select(r => r.ID).ToList(), false, cancellationToken);
-
-            if (!result.HasErrors)
+            foreach (var rule in result.Rules)
             {
-                _logger.LogInformation("Rules successfully deleted.");
-            }
-            else
-            {
-                _logger.LogError("Rules were not successfully deleted.");
-                foreach (var error in result.Errors)
-                {
-                    _logger.LogError(
-                            $"\nTitle: {error.Title}" +
-                            $"\nValue: {error.Value}" +
-                            $"\nID:    {error.ID}" +
-                            $"\nType:  {error.Type}");
-                }
+                UpdateRuleWithId(rule.Value, rule.ID);
             }
         }
+    }
 
-        private void UpdateRuleWithId(string value, string id)
+    public async Task DeleteRules(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Deleting rules...");
+        var result = await _twitterContext.DeleteStreamingFilterRulesAsync(_rules.Select(r => r.ID).ToList(), false, cancellationToken);
+
+        if (!result.HasErrors)
         {
-            var duplicateRule = _rules.First(r => r.Value == value);
-            _rules.Remove(duplicateRule);
-            _rules.Add(new StreamingRule
-            {
-                ID = id,
-                Tag = duplicateRule.Tag,
-                Value = duplicateRule.Value
-            });
+            _logger.LogInformation("Rules successfully deleted.");
         }
+        else
+        {
+            _logger.LogError("Rules were not successfully deleted.");
+            foreach (var error in result.Errors)
+            {
+                _logger.LogError(
+                        $"\nTitle: {error.Title}" +
+                        $"\nValue: {error.Value}" +
+                        $"\nID:    {error.ID}" +
+                        $"\nType:  {error.Type}");
+            }
+        }
+    }
+
+    private void UpdateRuleWithId(string value, string id)
+    {
+        var duplicateRule = _rules.First(r => r.Value == value);
+        _rules.Remove(duplicateRule);
+        _rules.Add(new StreamingRule
+        {
+            ID = id,
+            Tag = duplicateRule.Tag,
+            Value = duplicateRule.Value
+        });
     }
 }

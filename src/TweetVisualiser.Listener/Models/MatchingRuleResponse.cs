@@ -1,8 +1,7 @@
-namespace TweetVisualiser.Listener.Models
+namespace TweetVisualiser.Listener.Models;
+
+public class MatchingRuleResponse
 {
-    public class MatchingRuleResponse
-    {
-        public long id { get; set; }
-        public string tag { get; set; }
-    }
+    public string id { get; set; }
+    public string tag { get; set; }
 }

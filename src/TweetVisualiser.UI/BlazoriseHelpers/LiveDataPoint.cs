@@ -1,8 +1,7 @@
-namespace TweetVisualiser.UI.BlazoriseHelpers
+namespace TweetVisualiser.UI.BlazoriseHelpers;
+
+public struct LiveDataPoint
 {
-    public struct LiveDataPoint
-    {
-        public object X { get; set; }
-        public object Y { get; set; }
-    }
+    public object X { get; set; }
+    public object Y { get; set; }
 }
